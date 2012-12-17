@@ -1,15 +1,24 @@
 package cwi.commoncrawl;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.filecache.DistributedCache;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -41,20 +50,16 @@ public class SearchTextDataPages extends Configured implements Tool {
 	private static final String FILEFILTER = "textData-";
 	private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl/data/public/common-crawl/award/testset/";
 
-	private static final String[] keyWords = { "gezocht", "gevraagd",
-			"vacature", "vacatures", "vakature", "vakatures", "vacaturenummer",
-			"referentienummer", "taakomschrijving", "functieomschrijving",
-			"functie omschrijving", "doel van de functie", "sollicitatie",
-			"sollicitaties", "solliciteren" };
+	private static String[] keyWords;
 
 	/**
 	 * Mapping class that filter textData pages for given domain
 	 */
 	public static class SearchTextDataPagesMapper extends
-			Mapper<Text, Text, Text, LongWritable> {
+			Mapper<Text, Text, Text, Text> {
 
 		private final Text outKey = new Text();
-		private final LongWritable outVal = new LongWritable();
+		private final Text outVal = new Text();
 
 		String url;
 		URI uri;
@@ -67,12 +72,51 @@ public class SearchTextDataPages extends Configured implements Tool {
 		String domainID;
 		int keywordF;
 		String fileName;
+		private Path[] localFiles;
+		ArrayList<String> temp = new ArrayList<String>();
+		int keyworgTF;
+		HashMap<String, Integer> matchedKeys = new HashMap<String, Integer>();
+		Set set;
+
+		protected void setup(Context context) throws IOException {
+
+			BufferedReader br;
+			Configuration conf = context.getConfiguration();
+			localFiles = DistributedCache.getLocalCacheFiles(conf);
+
+			for (Path localFile : localFiles) {
+				try {
+					// in = fs.open(localFile);
+					br = new BufferedReader(
+							new FileReader(localFile.toString()));
+					String line = "";
+
+					while ((line = br.readLine()) != null) {
+						temp.add(line);
+						// LOG.info(line);
+					}
+					keyWords = new String[temp.size()];
+					temp.toArray(keyWords);
+
+				} catch (FileNotFoundException e1) {
+					e1.printStackTrace();
+					System.out
+							.println("read from distributed cache: file not found!");
+				} catch (IOException e1) {
+					e1.printStackTrace();
+					System.out
+							.println("read from distributed cache: IO exception!");
+				}
+
+			}
+
+		};
 
 		@SuppressWarnings("unchecked")
 		@Override
 		public void map(Text key, Text value, Context context)
 				throws IOException {
-			Configuration conf = context.getConfiguration();
+
 			// givenDomain = conf.get("GIVEN-DOMAIN");
 			InputSplit split = context.getInputSplit();
 
@@ -95,54 +139,37 @@ public class SearchTextDataPages extends Configured implements Tool {
 							.topPrivateDomain().name();
 					parts = hostDomain.split("\\.");
 					domainID = parts[parts.length - 1];
-					if (domainID.equalsIgnoreCase("nl")) {
-						// || domainID.equalsIgnoreCase("uk")
-						// || domainID.equalsIgnoreCase("nl")
-						// || domainID.equalsIgnoreCase("pl")
-						// || domainID.equalsIgnoreCase("se")
-						// || domainID.equalsIgnoreCase("dk")
-						// || domainID.equalsIgnoreCase("no")
-						// || domainID.equalsIgnoreCase("fi")
-						// || domainID.equalsIgnoreCase("fr")
-						// || domainID.equalsIgnoreCase("com")) {
-						for (String vacancyKW : keyWords) {
+					// if (domainID.equalsIgnoreCase("nl")) {
 
-							
-							keywordF = StringUtils.countMatches(pageText,
-									vacancyKW);
-							// matchedKeys.put(vacancyKW, keyworgTF);
-							if (keywordF > 0) {
+					for (String vacancyKW : keyWords) {
 
-								outKey.set(vacancyKW + "\t" + domainID + "\t"
-										+ url);
-								outVal.set(keywordF);
+						keyworgTF = StringUtils.countMatches(pageText,
+								vacancyKW);
+						matchedKeys.put(vacancyKW, keyworgTF);
+
+					}
+
+					set = matchedKeys.entrySet();
+					Iterator iter = set.iterator();
+
+					if (matchedKeys.size() >= 2) {
+						while (iter.hasNext()) {
+
+							Map.Entry<String, Integer> e = (Map.Entry<String, Integer>) iter
+									.next();
+							if (e.getValue() > 0) {
+								outKey.set(domainID + "," + url);
+								outVal.set(e.getKey() + ","
+										+ Integer.toString(e.getValue()));
+
 								context.write(outKey, outVal);
-								// LOG.info(keywordF);
-
 							}
 
 						}
 
-						/*
-						 * set = matchedKeys.entrySet(); Iterator iter =
-						 * set.iterator();
-						 * 
-						 * if (matchedKeys.size() >= 2) { while (iter.hasNext())
-						 * {
-						 * 
-						 * Map.Entry<String, Integer> e = (Map.Entry<String,
-						 * Integer>) iter .next(); if (e.getValue() > 0) {
-						 * 
-						 * outKey.set(e.getKey() + "\t" + domainID + "\t" +
-						 * key.toString()); outVal.set(e.getValue()); //
-						 * LOG.info(outVal); context.write(outKey, outVal); }
-						 * 
-						 * }
-						 * 
-						 * }
-						 */
-
 					}
+
+					// }
 
 				}
 
@@ -150,20 +177,27 @@ public class SearchTextDataPages extends Configured implements Tool {
 				LOG.error("Caught Exception", ex);
 			}
 		}
+
 	}
 
 	public static class SearchTextDataPagesReducer extends
-			Reducer<Text, LongWritable, Text, LongWritable> {
+			Reducer<Text, Text, Text, Text> {
 
 		Text outKey = new Text();
-		LongWritable outVal = new LongWritable();
+		Text outVal = new Text();
+		
 
-		public void reduce(Text key, LongWritable value, Context context)
+		public void reduce(Text key, Iterator<Text> values, Context context)
 				throws IOException, InterruptedException {
+			StringBuilder result = new StringBuilder();
+			while (values.hasNext()) {
+				result.append(values.next().toString());
+				result.append(",");
 
+			}
 			outKey.set(key.toString());
-			outVal.set(value.get());
-			LOG.info(outVal);
+			outVal.set(result.toString());
+
 			context.write(outKey, outVal);
 
 		}
@@ -223,6 +257,12 @@ public class SearchTextDataPages extends Configured implements Tool {
 		Configuration conf = getConf();
 
 		Job job = new Job(conf);
+		DistributedCache
+				.addCacheFile(
+						new URI(
+								"hdfs://p-head03.alley.sara.nl/user/tsamar/common-crawl/filters/keywords.en.txt"),
+						job.getConfiguration());
+
 		job.setJarByClass(SearchTextDataPages.class);
 		job.setNumReduceTasks(numReducers);
 
@@ -246,13 +286,14 @@ public class SearchTextDataPages extends Configured implements Tool {
 		// Set the output data types.
 
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(LongWritable.class);
+		job.setOutputValueClass(Text.class);
 
 		job.setMapOutputKeyClass(Text.class);
-		job.setMapOutputValueClass(LongWritable.class);
+		job.setMapOutputValueClass(Text.class);
 
 		// Set which Mapper and Reducer classes to use.
 		job.setMapperClass(SearchTextDataPages.SearchTextDataPagesMapper.class);
+		job.setCombinerClass(SearchTextDataPages.SearchTextDataPagesReducer.class);
 		job.setReducerClass(SearchTextDataPages.SearchTextDataPagesReducer.class);
 
 		if (job.waitForCompletion(true)) {

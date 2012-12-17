@@ -2,6 +2,8 @@ package cwi.commoncrawl;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,7 +70,7 @@ public class Test {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+		ArrayList<String> copyFromArray = new ArrayList<String>();
 		 String[] keyWords = { "gezocht", "gevraagd",
 			"vacature", "vacatures", "vakature", "vakatures", "vacaturenummer",
 			"referentienummer", "taakomschrijving", "functieomschrijving",
@@ -76,8 +78,15 @@ public class Test {
 			"sollicitaties", "solliciteren" };
 		 
 		 for(String keyword : keyWords){
-			 System.out.println(keyword+"\n");
+			 copyFromArray.add(keyword);
+			
 			 
+		 }
+		 
+		String[] fromArraylistToArray = new String[copyFromArray.size()];
+		copyFromArray.toArray(fromArraylistToArray);
+		 for(String added :fromArraylistToArray){
+			 System.out.println(added);
 		 }
 		 
 		 LongWritable v = new LongWritable(2);

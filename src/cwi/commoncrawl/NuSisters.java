@@ -85,8 +85,8 @@ public class NuSisters extends Configured implements Tool {
 							.topPrivateDomain().name();
 					parts = hostDomain.split("\\.");
 					domainID = parts[parts.length - 1];
-					if (domainID.equalsIgnoreCase("nl")
-							&& hostDomain.startsWith("nu")) {
+					if (domainID.equalsIgnoreCase("nl"))
+							 {
 
 						outKey.set(hostDomain);
 
