@@ -216,6 +216,7 @@ public class CreateSample extends Configured implements Tool {
 
 		conf.set("totalURLsNum", "278446016");
 		conf.set("sample", "100000");
+		conf.setLong("mapred.task.timeout", 3600000);
 		Job job = new Job(conf);
 		DistributedCache
 				.addCacheFile(
