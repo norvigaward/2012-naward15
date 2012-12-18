@@ -34,10 +34,10 @@ import com.google.gson.JsonParser;
 
 import cwi.commoncrawl.PageDomainCount.MAPPERCOUNTER;
 
-public class FilterSitesPerDomain extends Configured implements Tool {
+public class ArcLooupIndex extends Configured implements Tool {
 
 	private static final Logger LOG = Logger
-			.getLogger(FilterSitesPerDomain.class);
+			.getLogger(ArcLooupIndex.class);
 
 	private static final String ARGNAME_INPATH = "-in";
 	private static final String ARGNAME_OUTPATH = "-out";
@@ -99,16 +99,7 @@ public class FilterSitesPerDomain extends Configured implements Tool {
 							.topPrivateDomain().name();
 					parts = hostDomain.split("\\.");
 					domainID = parts[parts.length - 1];
-					if (domainID.equalsIgnoreCase("nl")
-							|| domainID.equalsIgnoreCase("uk")
-							|| domainID.equalsIgnoreCase("nl")
-							|| domainID.equalsIgnoreCase("pl")
-							|| domainID.equalsIgnoreCase("se")
-							|| domainID.equalsIgnoreCase("dk")
-							|| domainID.equalsIgnoreCase("no")
-							|| domainID.equalsIgnoreCase("fi")
-							|| domainID.equalsIgnoreCase("fr")
-							|| domainID.equalsIgnoreCase("com")) {
+					
 
 						if (filefilter.equals("textData-")) {
 
@@ -148,7 +139,7 @@ public class FilterSitesPerDomain extends Configured implements Tool {
 
 						} 
 
-					}
+					
 
 				}
 
@@ -217,7 +208,7 @@ public class FilterSitesPerDomain extends Configured implements Tool {
 		Configuration conf = getConf();
 		conf.set("FILE-FILTER", fileFilter);
 		Job job = new Job(conf);
-		job.setJarByClass(FilterSitesPerDomain.class);
+		job.setJarByClass(ArcLooupIndex.class);
 		job.setNumReduceTasks(numReducers);
 
 		// Scan the provided input path
@@ -242,7 +233,7 @@ public class FilterSitesPerDomain extends Configured implements Tool {
 		job.setOutputValueClass(LongWritable.class);
 
 		// Set which Mapper and Reducer classes to use.
-		job.setMapperClass(FilterSitesPerDomain.FilterSitesPerDomainMapper.class);
+		job.setMapperClass(ArcLooupIndex.FilterSitesPerDomainMapper.class);
 		job.setReducerClass(LongSumReducer.class);
 
 		if (job.waitForCompletion(true)) {
@@ -258,7 +249,7 @@ public class FilterSitesPerDomain extends Configured implements Tool {
 	 */
 	public static void main(String[] args) throws Exception {
 		int res = ToolRunner.run(new Configuration(),
-				new FilterSitesPerDomain(), args);
+				new ArcLooupIndex(), args);
 		System.exit(res);
 	}
 }

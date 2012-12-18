@@ -114,7 +114,35 @@ public class Test {
 		 System.out.println(str2 + "\t" +str2.startsWith(start));
 		 
 		 }
-		
+		 
+		 String line = "ac	http://www.viagra.ac/buy-viagra//diabecon.html";
+		 String [] arraycomp;
+		 arraycomp = line.split("\t");
+		 
+		 for(String comp : arraycomp){
+			 System.out.println(comp);
+		 }
+		 float y = 1.4f;
+		 System.out.println(Math.round(y));
+		 float x= 278446016;
+		 //float r = 100000/x;
+		// System.out.println(r);
+		 float z= (100000f / 278446016f) * 181566959f;
+		 int r = Math.round(z);
+		 System.out.println(z + "\t"+r);
+		 
+		 ArrayList<Integer> ar = new ArrayList<Integer>();
+		 ar.add(3);
+		 ar.add(5);
+		 ar.add(10);
+		 ArrayList<Integer> res = RandomSampler.randomSample(ar, 2);
+		 for(int e : res){
+			 System.out.println(e);
+			 
+		 }
+		 if(ar.contains(5)){
+			 System.out.println("oooooooooooooooooooo");
+		 }
 	}
 
 }
