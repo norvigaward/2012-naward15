@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -58,8 +59,8 @@ public class CreateSample extends Configured implements Tool {
 			outKey.set(inputLine[0]);
 			outVal.set(inputLine[1]);
 			context.write(outKey, outVal);
-			//String output = outKey + "\t" + outVal;
-			//LOG.info(output);
+			// String output = outKey + "\t" + outVal;
+			// LOG.info(output);
 
 		}
 
@@ -115,50 +116,28 @@ public class CreateSample extends Configured implements Tool {
 
 		public void reduce(Text key, Iterable<Text> values, Context context)
 				throws IOException, InterruptedException {
-			
-			ArrayList<Text> urlsList = new ArrayList<Text>();
+
+			// ArrayList<Text> urlsList = new ArrayList<Text>();
+			// ArrayList<Text> sampleList = new ArrayList<Text>();
 			domainURLsNum = temp.get(key.toString());
-			for (Text val : values) {
-				urlsList.add(val);
-
-			}
-			int r = Math.round(((float) sample / (float) totalURLsNum)
+			int m = Math.round(((float) sample / (float) totalURLsNum)
 					* (float) domainURLsNum);
-
-			ArrayList<Text> sample = randomSample(urlsList, r);
+			int count = 0;
 			
-			for (Text url : sample) {
-				outKey.set(key.toString());
-				outVal.set(url.toString());
+			outKey.set(key.toString());
 
-				context.write(outKey, outVal);
+			for (Text val : values) {
+				// urlsList.add(val);
+				if (count < m) {
+					outVal.set(val.toString());
+					context.write(outKey, outVal);
+					
+				}
+				count++;
 
 			}
-			sample.clear();
 
 		}
-
-		 public static <T> ArrayList<T> randomSample(ArrayList<T> items, int m){
-             ArrayList<T> res = new ArrayList<T>();
-         int n = items.size();
-         if (m > n/2){ // The optimization
-             ArrayList<T> negativeSet = randomSample(items, n-m);
-             for(T item : items){
-                 if (!negativeSet.contains(item))
-                     res.add(item);
-             }
-         }else{ // The main loop
-             Random rnd = new Random();
-             while(res.size() < m){
-                 int randPos = rnd.nextInt(n);
-                 if (!res.contains(items.get(randPos)))
-                 {
-                    res.add(items.get(randPos));
-                 }
-             }
-         }
-         return res;
-     }
 
 	}
 
@@ -216,7 +195,11 @@ public class CreateSample extends Configured implements Tool {
 
 		conf.set("totalURLsNum", "278446016");
 		conf.set("sample", "100000");
-		conf.setLong("mapred.task.timeout", 3600000);
+		conf.setLong("mapred.task.timeout", 360000000);
+		conf.set("mapred.map.child.java.opts",
+				"-Xmx3000m -XX:-UseGCOverheadLimit");
+		conf.set("mapred.reduce.child.java.opts",
+				"-Xmx5000m -XX:-UseGCOverheadLimit");
 		Job job = new Job(conf);
 		DistributedCache
 				.addCacheFile(
@@ -231,7 +214,6 @@ public class CreateSample extends Configured implements Tool {
 		LOG.info("setting input path to '" + inputPath + "'");
 
 		FileInputFormat.addInputPath(job, new Path(inputPath));
-
 
 		// Set the path where final output 'part' files will be saved.
 		LOG.info("setting output path to '" + outputPath + "'");

@@ -1,14 +1,18 @@
 package cwi.commoncrawl;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer.Context;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.InternetDomainName;
@@ -115,13 +119,7 @@ public class Test {
 		 
 		 }
 		 
-		 String line = "ac	http://www.viagra.ac/buy-viagra//diabecon.html";
-		 String [] arraycomp;
-		 arraycomp = line.split("\t");
 		 
-		 for(String comp : arraycomp){
-			 System.out.println(comp);
-		 }
 		 float y = 1.4f;
 		 System.out.println(Math.round(y));
 		 float x= 278446016;
@@ -143,6 +141,55 @@ public class Test {
 		 if(ar.contains(5)){
 			 System.out.println("oooooooooooooooooooo");
 		 }
+		 
+		 Iterator <String> values;
+		 ArrayList<String> urlsList = new ArrayList<String>();
+			urlsList.add("hhhhhhhhhhhhhhhhhhhhhh");
+			urlsList.add("mmmmmmmmmmmmmmmmm");
+			urlsList.add("kkkkkkkkkkkkkkk");
+			urlsList.add("tttttttttttttttttttt");
+			urlsList.add("rrrrrrrrrrrrrrrrrrrrrrr");
+			 values=urlsList.iterator();
+			int m =3;
+			int count =1;
+			while (values.hasNext()) {
+				// urlsList.add(val);
+
+				System.out.println(values.next());
+				
+				if (count == m) {
+					break;
+				}
+				count++;
+
+			}
 	}
 
+
+
+/*public void reduce( Iterator<String> values)
+		throws IOException, InterruptedException {
+
+	 ArrayList<String> urlsList = new ArrayList<String>();
+	urlsList.add("hhhhhhhhhhhhhhhhhhhhhh");
+	urlsList.add("mmmmmmmmmmmmmmmmm");
+	urlsList.add("kkkkkkkkkkkkkkk");
+	urlsList.add("tttttttttttttttttttt");
+	urlsList.add("rrrrrrrrrrrrrrrrrrrrrrr");
+	 values=urlsList.iterator();
+	int m =3;
+	int count =0;
+	while (values.hasNext()) {
+		// urlsList.add(val);
+
+		System.out.println(values.hasNext());
+		
+		if (count == m) {
+			break;
+		}
+		count++;
+
+	}
+
+}*/
 }

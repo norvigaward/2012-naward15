@@ -1,6 +1,5 @@
 package cwi.arcUtils;
 
-
 import java.io.EOFException;
 import java.io.IOException;
 
@@ -23,158 +22,158 @@ import compressor.gzip.GzipCompressorInputStream;
  * Set "io.file.buffer.size" to define the amount of data that should be
  * buffered from S3.
  */
-public class ArcRecordReader
-    extends RecordReader<Text, ArcRecord> {
+public class ArcRecordReader extends RecordReader<Text, ArcRecord> {
 
-  private static final Logger LOG = Logger.getLogger(ArcRecordReader.class);
+	private static final Logger LOG = Logger.getLogger(ArcRecordReader.class);
 
-  private FSDataInputStream         _fsin;
-  private GzipCompressorInputStream _gzip;
-  private long                      _fileLength;
-  private Text                      _key;
-  private ArcRecord                 _value;
-  private Configuration             _conf;
+	private FSDataInputStream _fsin;
+	private GzipCompressorInputStream _gzip;
+	private long _fileLength;
+	private Text _key;
+	private ArcRecord _value;
+	private Configuration _conf;
 
-  /**
+	/**
    *
    */
-  public void initialize(InputSplit insplit, TaskAttemptContext context)
-      throws IOException { 
-    
-    _conf = context.getConfiguration();
-    
-    FileSplit split = (FileSplit)insplit;
+	public void initialize(InputSplit insplit, TaskAttemptContext context)
+			throws IOException {
 
-    if (split.getStart() != 0) {
-      IOException ex = new IOException("Invalid ARC file split start " + split.getStart() + ": ARC files are not splittable");
-      LOG.error(ex.getMessage());
-      throw ex; 
-    }
+		_conf = context.getConfiguration();
 
-    // open the file and seek to the start of the split
-    final Path file = split.getPath();
+		FileSplit split = (FileSplit) insplit;
 
-    FileSystem fs = file.getFileSystem(context.getConfiguration());
+		if (split.getStart() != 0) {
+			IOException ex = new IOException("Invalid ARC file split start "
+					+ split.getStart() + ": ARC files are not splittable");
+			LOG.error(ex.getMessage());
+			throw ex;
+		}
 
-    this._fsin = fs.open(file);
+		// open the file and seek to the start of the split
+		final Path file = split.getPath();
 
-    // create a GZIP stream that *does not* automatically read through members
-    this._gzip = new GzipCompressorInputStream(this._fsin, false);
+		FileSystem fs = file.getFileSystem(context.getConfiguration());
 
-    this._fileLength = fs.getFileStatus(file).getLen();
+		this._fsin = fs.open(file);
 
-    // First record should be an ARC file header record.  Skip it.
-    this._skipRecord();
-  }
+		// create a GZIP stream that *does not* automatically read through
+		// members
+		this._gzip = new GzipCompressorInputStream(this._fsin, false);
 
-  /**
-   * Skips the current record, and advances to the next GZIP member.
-   */
-  private void _skipRecord()
-      throws IOException {
+		this._fileLength = fs.getFileStatus(file).getLen();
 
-    long n = 0;
+		// First record should be an ARC file header record. Skip it.
+		this._skipRecord();
+	}
 
-    do {
-      n = this._gzip.skip(999999999);
-    }
-    while (n > 0);
+	/**
+	 * Skips the current record, and advances to the next GZIP member.
+	 */
+	private void _skipRecord() throws IOException {
 
-    this._gzip.nextMember();
-  }
-  
-  /**
-   * @inheritDoc
-   */
-  public Text createKey() {
-    return new Text();
-  }
-  
-  /**
-   * @inheritDoc
-   */
-  public ArcRecord createValue() {
-    return new ArcRecord();
-  }
+		long n = 0;
 
-  private static byte[] _checkBuffer = new byte[64];
+		do {
+			n = this._gzip.skip(999999999);
+		} while (n > 0);
 
-  /**
+		this._gzip.nextMember();
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public Text createKey() {
+		return new Text();
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public ArcRecord createValue() {
+		return new ArcRecord();
+	}
+
+	private static byte[] _checkBuffer = new byte[64];
+
+	/**
    * 
    */
-  public synchronized boolean nextKeyValue() throws IOException, InterruptedException {
+	public synchronized boolean nextKeyValue() throws IOException,
+			InterruptedException {
 
-    boolean isValid = true;
-    
-    _key = (Text)ReflectionUtils.newInstance(Text.class, _conf);
-    _value = (ArcRecord)ReflectionUtils.newInstance(ArcRecord.class, _conf);
-    
-    // try reading an ARC record from the stream
-    try {
-      isValid = _value.readFrom(this._gzip);
-    }
-    catch (EOFException ex) {
-      return false;
-    }
+		boolean isValid = true;
 
-    // if the record is not valid, skip it
-    if (isValid == false) {
-      LOG.error("Invalid ARC record found at GZIP position "+this._gzip.getBytesRead()+".  Skipping ...");
-      this._skipRecord();
-      return true;
-    }
+		_key = (Text) ReflectionUtils.newInstance(Text.class, _conf);
+		_value = (ArcRecord) ReflectionUtils
+				.newInstance(ArcRecord.class, _conf);
 
-    if (_value.getURL() != null)
-      _key.set(_value.getURL());
+		// try reading an ARC record from the stream
+		try {
+			isValid = _value.readFrom(this._gzip);
 
-    // check to make sure we've reached the end of the GZIP member
-    int n = this._gzip.read(_checkBuffer, 0, 64);
+		} catch (EOFException ex) {
+			return false;
+		}
 
-    if (n != -1) {
-      LOG.error(n+"  bytes of unexpected content found at end of ARC record.  Skipping ...");
-      this._skipRecord();
-    }
-    else {
-      this._gzip.nextMember();
-    }
-   
-    return true;
-  }
+		// if the record is not valid, skip it
+		if (isValid == false) {
+			LOG.error("Invalid ARC record found at GZIP position "
+					+ this._gzip.getBytesRead() + ".  Skipping ...");
+			this._skipRecord();
+			return true;
+		}
 
-  /**
-   * @inheritDoc
-   */
-  public float getProgress()
-      throws IOException {
-    return Math.min(1.0f, this._gzip.getBytesRead() / (float) this._fileLength);
-  }
-  
-  /**
-   * @inheritDoc
-   */
-  public synchronized long getPos()
-      throws IOException {
-    return this._gzip.getBytesRead();
-  }
+		if (_value.getURL() != null)
+			_key.set(_value.getURL());
 
-  /**
-   * @inheritDoc
-   */
-  public synchronized void close()
-      throws IOException {
+		// check to make sure we've reached the end of the GZIP member
+		int n = this._gzip.read(_checkBuffer, 0, 64);
 
-    if (this._gzip != null)
-      this._gzip.close(); 
-  }
+		if (n != -1) {
+			LOG.error(n
+					+ "  bytes of unexpected content found at end of ARC record.  Skipping ...");
+			this._skipRecord();
+		} else {
+			this._gzip.nextMember();
+		}
 
-  @Override
-  public Text getCurrentKey() throws IOException, InterruptedException {
-    return _key;
-  }
+		return true;
+	}
 
-  @Override
-  public ArcRecord getCurrentValue() throws IOException, InterruptedException {
-    return _value;
-  }
+	/**
+	 * @inheritDoc
+	 */
+	public float getProgress() throws IOException {
+		return Math.min(1.0f, this._gzip.getBytesRead()
+				/ (float) this._fileLength);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public synchronized long getPos() throws IOException {
+		return this._gzip.getBytesRead();
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public synchronized void close() throws IOException {
+
+		if (this._gzip != null)
+			this._gzip.close();
+	}
+
+	@Override
+	public Text getCurrentKey() throws IOException, InterruptedException {
+		return _key;
+	}
+
+	@Override
+	public ArcRecord getCurrentValue() throws IOException, InterruptedException {
+		return _value;
+	}
 
 }
