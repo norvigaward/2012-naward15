@@ -1,11 +1,15 @@
 package cwi.commoncrawl;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,178 +22,32 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.InternetDomainName;
 
 public class Test {
-	private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl/data/public/common-crawl/award/testset/";
-	public static void main(String [] args){
+	private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl";
+
+	public static void main(String[] args) throws IOException, URISyntaxException {
+
 		
-		String test = " ";
-		System.out.println(test+"\t");
-		System.out.println(test.concat("\t").concat("mahmoud"));
+
 		
-		System.out.println("hello" + "_" +"/");
-		
-		String path="hdfs://p-head03.alley.sara.nl/data/public/common-crawl/award/testset/textdata-00000";
+
+		String path = "hdfs://p-head03.alley.sara.nl/data/public/common-crawl/parse-output/segment/1346876860493/1346905341564_2420.arc.gz";
 		System.out.println(path);
 		System.out.println(PATH_PREFIX);
 		System.out.println(StringUtils.remove(path, PATH_PREFIX));
 		System.out.println();
-		
-		String str = "hello hello h xx gh hello \n hello hello h xx hello h xx";
-		System.out.println(str);
-		System.out.println(StringUtils.countMatches(str, "hello h xx"));
-		
-		Pattern pattern = Pattern.compile(".*.nl");
-		Matcher matcher = pattern.matcher(path);
-		if (matcher.find()) {
-		   // System.out.println(matcher.group(0)); //prints /{item}/
-		} 
-		
-		try {
-			URI uri = new URI("http://en.wikipedia.org/wiki/Main_Page");
-			String host=uri.getHost();
-			//System.out.println(host +"\t"+StringUtils.trimToNull(uri.getHost()));
-			
-			String domain = InternetDomainName.from(host).topPrivateDomain().name();
-			String givenDomain = "org1";
-			if (domain.matches(".*."+givenDomain)){
-				System.out.println("succeed");
-			}
-			String [] parts = domain.split("\\.");
-			System.out.println(parts[parts.length-1]);
-			
-			if(parts[parts.length-1].equalsIgnoreCase("org")){
-				System.out.println("yaaaaaaaaaa");
-				
-			}
-			for (String str1:parts){
-				System.out.println(str);
-				
-			}
-			ImmutableList<String> uriParts =InternetDomainName.from(host).parts();
-			
-			for (String part : uriParts){
-				System.out.println(part);
-			}
-			System.out.println(uri+"\t"+host+"\t"+domain);
-		} catch (URISyntaxException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		ArrayList<String> copyFromArray = new ArrayList<String>();
-		 String[] keyWords = { "gezocht", "gevraagd",
-			"vacature", "vacatures", "vakature", "vakatures", "vacaturenummer",
-			"referentienummer", "taakomschrijving", "functieomschrijving",
-			"functie omschrijving", "doel van de functie", "sollicitatie",
-			"sollicitaties", "solliciteren" };
-		 
-		 for(String keyword : keyWords){
-			 copyFromArray.add(keyword);
-			
-			 
-		 }
-		 
-		String[] fromArraylistToArray = new String[copyFromArray.size()];
-		copyFromArray.toArray(fromArraylistToArray);
-		 for(String added :fromArraylistToArray){
-			 System.out.println(added);
-		 }
-		 
-		 LongWritable v = new LongWritable(2);
-		 LongWritable v1 = new LongWritable();
-		 v1.set(v.get());
-		 System.out.println(v);
-		 System.out.println(v1);
-		 
-		 
-		 String [] toCheck = {"nu.nl",
-	                "nuzakelijk.nl",
-	                "nusport.nl",
-	                "nugeld.nl",
-	                "nujij.nl",
-	                "zie.nl",
-	                "nupubliek.nl",
-	                "nuwerk.nl",
-	                "nufoto.nl",
-	                "nulive.nl",
-	                "nujournaal.nl",
-	                "nuentoen.nl",
-	                "nubijlage.nl"};
-		 String start = "nu";
-		 for (String str2 : toCheck){
-		 System.out.println(str2 + "\t" +str2.startsWith(start));
-		 
-		 }
-		 
-		 
-		 float y = 1.4f;
-		 System.out.println(Math.round(y));
-		 float x= 278446016;
-		 //float r = 100000/x;
-		// System.out.println(r);
-		 float z= (100000f / 278446016f) * 181566959f;
-		 int r = Math.round(z);
-		 System.out.println(z + "\t"+r);
-		 
-		 ArrayList<Integer> ar = new ArrayList<Integer>();
-		 ar.add(3);
-		 ar.add(5);
-		 ar.add(10);
-		 ArrayList<Integer> res = RandomSampler.randomSample(ar, 2);
-		 for(int e : res){
-			 System.out.println(e);
-			 
-		 }
-		 if(ar.contains(5)){
-			 System.out.println("oooooooooooooooooooo");
-		 }
-		 
-		 Iterator <String> values;
-		 ArrayList<String> urlsList = new ArrayList<String>();
-			urlsList.add("hhhhhhhhhhhhhhhhhhhhhh");
-			urlsList.add("mmmmmmmmmmmmmmmmm");
-			urlsList.add("kkkkkkkkkkkkkkk");
-			urlsList.add("tttttttttttttttttttt");
-			urlsList.add("rrrrrrrrrrrrrrrrrrrrrrr");
-			 values=urlsList.iterator();
-			int m =3;
-			int count =1;
-			while (values.hasNext()) {
-				// urlsList.add(val);
 
-				System.out.println(values.next());
-				
-				if (count == m) {
-					break;
-				}
-				count++;
+		
 
-			}
+		String url = "http://www.pixelache.ac/helsinki/2010/greetings-from-kultivator-dyestad-farm-oland-sweden/";
+		URI uri =new URI(url);
+		InternetDomainName domainName = InternetDomainName.from(uri.getHost());
+		String domain = domainName.topPrivateDomain().name();
+System.out.println(domainName.toString() + "\t"+domain);
+		
+		
+
+		
+		
 	}
 
-
-
-/*public void reduce( Iterator<String> values)
-		throws IOException, InterruptedException {
-
-	 ArrayList<String> urlsList = new ArrayList<String>();
-	urlsList.add("hhhhhhhhhhhhhhhhhhhhhh");
-	urlsList.add("mmmmmmmmmmmmmmmmm");
-	urlsList.add("kkkkkkkkkkkkkkk");
-	urlsList.add("tttttttttttttttttttt");
-	urlsList.add("rrrrrrrrrrrrrrrrrrrrrrr");
-	 values=urlsList.iterator();
-	int m =3;
-	int count =0;
-	while (values.hasNext()) {
-		// urlsList.add(val);
-
-		System.out.println(values.hasNext());
-		
-		if (count == m) {
-			break;
-		}
-		count++;
-
-	}
-
-}*/
 }

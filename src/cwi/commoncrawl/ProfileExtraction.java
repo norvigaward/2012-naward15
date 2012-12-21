@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -37,13 +39,14 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import com.google.common.net.InternetDomainName;
+
 import cwi.arcUtils.ArcInputFormat;
 import cwi.arcUtils.ArcRecord;
 
-public class ExtractHtmlFromArc extends Configured implements Tool {
+public class ProfileExtraction extends Configured implements Tool {
 
-	private static final Logger LOG = Logger
-			.getLogger(ExtractHtmlFromArc.class);
+	private static final Logger LOG = Logger.getLogger(ProfileExtraction.class);
 	private static final String ARGNAME_INPATH = "-in";
 	private static final String ARGNAME_OUTPATH = "-out";
 	private static final String FILEFILTER = ".arc.gz";
@@ -52,96 +55,64 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 		NOT_RECOGNIZED_AS_HTML, HTML_PARSE_FAILURE, HTML_PAGE_TOO_LARGE, EXCEPTIONS, OUT_OF_MEMORY
 	}
 
-	public static class ExtractHtmlFromArcMapper extends
+	public static class ProfileExtractionMapper extends
 			Mapper<Text, ArcRecord, Text, Text> {
-		private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl";
+
 		private String urlHtml;
 		private String url;
+
+		String json;
+		URI uri;
+		String host;
+		InternetDomainName idn;
+		String hostDomain;
 		Text outKey = new Text();
 		Text outVal = new Text();
-
-		private Path urlFile;
-		private Path arcFile;
-		ArrayList<String> urlsList = new ArrayList<String>();
-		ArrayList<String> arcsList = new ArrayList<String>();
+		List<String> profileSites = new ArrayList<String>();
 
 		protected void setup(Context context) throws IOException {
 
 			Configuration conf = context.getConfiguration();
-
-			urlFile = DistributedCache.getLocalCacheFiles(conf)[0];
-			arcFile = DistributedCache.getLocalCacheFiles(conf)[1];
-			urlsList = readFileFromCache(urlFile);
-			arcsList = readFileFromCache(arcFile);
+			profileSites = Arrays.asList(conf.get("PROFILE-SITES").split(","));
 
 		};
-
-		// read file from cache and put the values in array list
-		public ArrayList<String> readFileFromCache(Path file) {
-			ArrayList<String> al = new ArrayList<String>();
-			try {
-
-				BufferedReader br = new BufferedReader(new FileReader(
-						file.toString()));
-				String line = "";
-				while ((line = br.readLine()) != null) {
-
-					al.add(line);
-
-					// LOG.info(line);
-				}
-
-			} catch (FileNotFoundException e1) {
-				e1.printStackTrace();
-				System.out
-						.println("read from distributed cache: file not found!");
-			} catch (IOException e1) {
-				e1.printStackTrace();
-				System.out
-						.println("read from distributed cache: IO exception!");
-			}
-			return al;
-		}
-
-		String filePath;
 
 		public void map(Text key, ArcRecord value, Context context)
 				throws IOException {
 
 			try {
 
-				InputSplit split = context.getInputSplit();
 
-				FileSplit fileSplit = (FileSplit) split;
-				filePath = StringUtils.remove(fileSplit.getPath().toString(),
-						PATH_PREFIX);
-				if (arcsList.contains(filePath)) {
+				if (!value.getContentType().contains("html")) {
+					context.getCounter(MAPPERCOUNTER.NOT_RECOGNIZED_AS_HTML)
+							.increment(1);
+					return;
+				}
 
-					if (!value.getContentType().contains("html")) {
-						context.getCounter(MAPPERCOUNTER.NOT_RECOGNIZED_AS_HTML)
-								.increment(1);
-						return;
+				// ensure sample instances have enough memory to parse HTML
+				if (value.getContentLength() > (5 * 1024 * 1024)) {
+					context.getCounter(MAPPERCOUNTER.HTML_PAGE_TOO_LARGE)
+							.increment(1);
+					return;
+				}
+				//get the url from the map (value:ARC record)
+				url = value.getURL();
+				uri = new URI(url);
+				idn = InternetDomainName.from(uri.getHost());
+				hostDomain = idn.topPrivateDomain().name();
+				/* check if the url host domain is one of the social sites that
+				 we are extracting; linkedin.com, viadeo.com, xing.com*/
+				
+				if (profileSites.contains(hostDomain)) { 
+					// extract HTML
+					urlHtml = value.getParsedHTML().toString();
+
+					if (urlHtml != null && url != null) {
+						outKey.set(url);
+						outVal.set(urlHtml);
+
+						context.write(outKey, outVal);
 					}
-
-					// ensure sample instances have enough memory to parse HTML
-					if (value.getContentLength() > (5 * 1024 * 1024)) {
-						context.getCounter(MAPPERCOUNTER.HTML_PAGE_TOO_LARGE)
-								.increment(1);
-						return;
-					}
-					url = value.getURL();
-
-					if (urlsList.contains(url)) { // extract HTML
-						urlHtml = value.getParsedHTML().toString();
-
-						if (urlHtml != null && url != null) {
-							outKey.set(url);
-							outVal.set(urlHtml);
-
-							context.write(outKey, outVal);
-						}
-					}
-
 				}
 
 			} catch (Throwable e) {
@@ -159,7 +130,7 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 	}
 
 	public void usage() {
-		System.out.println("\n  org.commoncrawl.examples.ExtractHtmlFromArc \n"
+		System.out.println("\n  org.commoncrawl.examples.ProfileExtraction \n"
 				+ ARGNAME_INPATH + "\t" + " <inputpath>\n"
 
 				+ ARGNAME_OUTPATH + "\t" + " <outputpath>\n");
@@ -205,7 +176,9 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 
 		// Create the Hadoop job.
 		Configuration conf = getConf();
+		conf.set("PROFILE-SITES", "linkedin.com,viadeo.com,xing.com");
 		Job job = new Job(conf);
+
 		// add the file which contains the urls of sample into distriuted cache
 		DistributedCache.addCacheFile(new URI(
 				"common-crawl/enMatches/sample/urlslist/part-m-00000"), job
@@ -215,7 +188,7 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 				"common-crawl/enMatches/sample/arcslist/part-m-00000"), job
 				.getConfiguration());
 
-		job.setJarByClass(ExtractHtmlFromArc.class);
+		job.setJarByClass(ProfileExtraction.class);
 		job.setNumReduceTasks(0);
 
 		// Scan the provided input path for ARC files.
@@ -234,14 +207,14 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 		job.setInputFormatClass(ArcInputFormat.class);
 
 		// Set which OutputFormat class to use.
-		job.setOutputFormatClass(TextOutputFormat.class);
+		job.setOutputFormatClass(SequenceFileOutputFormat.class);
 
 		// Set the output data types.
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
 
 		// Set which Mapper and Reducer classes to use.
-		job.setMapperClass(ExtractHtmlFromArc.ExtractHtmlFromArcMapper.class);
+		job.setMapperClass(ProfileExtraction.ProfileExtractionMapper.class);
 		// job.setReducerClass(LongSumReducer.class);
 
 		if (job.waitForCompletion(true)) {
@@ -256,7 +229,7 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 	 * example Hadoop job.
 	 */
 	public static void main(String[] args) throws Exception {
-		int res = ToolRunner.run(new Configuration(), new ExtractHtmlFromArc(),
+		int res = ToolRunner.run(new Configuration(), new ProfileExtraction(),
 				args);
 		System.exit(res);
 	}

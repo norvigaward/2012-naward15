@@ -16,12 +16,7 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 import compressor.gzip.GzipCompressorInputStream;
 
-/**
- * Reads ARC records.
- * 
- * Set "io.file.buffer.size" to define the amount of data that should be
- * buffered from S3.
- */
+
 public class ArcRecordReader extends RecordReader<Text, ArcRecord> {
 
 	private static final Logger LOG = Logger.getLogger(ArcRecordReader.class);

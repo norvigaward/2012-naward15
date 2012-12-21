@@ -123,11 +123,13 @@ public class CreateSample extends Configured implements Tool {
 			int m = Math.round(((float) sample / (float) totalURLsNum)
 					* (float) domainURLsNum);
 			int count = 0;
-			
+			int die;
 			outKey.set(key.toString());
 
-			for (Text val : values) {
+		/*	for (Text val : values) {
 				// urlsList.add(val);
+				
+				
 				if (count < m) {
 					outVal.set(val.toString());
 					context.write(outKey, outVal);
@@ -135,7 +137,22 @@ public class CreateSample extends Configured implements Tool {
 				}
 				count++;
 
+			}*/
+			
+			
+			for(Text val : values){
+				die = (int)(Math.random()*6 + 1);
+		        if (die ==1 && count < m){
+		        	outVal.set(val.toString());
+					context.write(outKey, outVal);
+		       
+		        count++;
+		        }
+				
 			}
+			
+			
+			
 
 		}
 
