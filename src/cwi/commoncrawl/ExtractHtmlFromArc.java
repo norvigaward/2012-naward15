@@ -52,6 +52,10 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 		NOT_RECOGNIZED_AS_HTML, HTML_PARSE_FAILURE, HTML_PAGE_TOO_LARGE, EXCEPTIONS, OUT_OF_MEMORY
 	}
 
+	/*
+	 * Mapper class that extract the HTML content for the sample list of URLs
+	 */
+
 	public static class ExtractHtmlFromArcMapper extends
 			Mapper<Text, ArcRecord, Text, Text> {
 		private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl";
@@ -68,6 +72,11 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 		protected void setup(Context context) throws IOException {
 
 			Configuration conf = context.getConfiguration();
+			/*
+			 * read the file which contains the URLs, and file which contains
+			 * the ARC file names. These two files came from the same file which
+			 * contains the URL and the ARC file which contains the URL
+			 */
 
 			urlFile = DistributedCache.getLocalCacheFiles(conf)[0];
 			arcFile = DistributedCache.getLocalCacheFiles(conf)[1];
@@ -105,16 +114,25 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 
 		String filePath;
 
+		/*
+		 * (non-Javadoc)
+		 * 
+		 * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
+		 * org.apache.hadoop.mapreduce.Mapper.Context) KEYIN is a URL of the ARC
+		 * record VALUEIN is the ARC record which contains the real URL payload
+		 */
 		public void map(Text key, ArcRecord value, Context context)
 				throws IOException {
 
 			try {
-
+				// get name and path of the ARC file from which the ARC Record
+				// came
 				InputSplit split = context.getInputSplit();
-
 				FileSplit fileSplit = (FileSplit) split;
+
 				filePath = StringUtils.remove(fileSplit.getPath().toString(),
 						PATH_PREFIX);
+				// check if the ARC file is in the sample list
 				if (arcsList.contains(filePath)) {
 
 					if (!value.getContentType().contains("html")) {
@@ -130,8 +148,9 @@ public class ExtractHtmlFromArc extends Configured implements Tool {
 						return;
 					}
 					url = value.getURL();
-
-					if (urlsList.contains(url)) { // extract HTML
+					// check if the URL is in the sample list
+					if (urlsList.contains(url)) {
+						// extract HTML
 						urlHtml = value.getParsedHTML().toString();
 
 						if (urlHtml != null && url != null) {

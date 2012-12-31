@@ -55,6 +55,12 @@ public class ProfileExtraction extends Configured implements Tool {
 		NOT_RECOGNIZED_AS_HTML, HTML_PARSE_FAILURE, HTML_PAGE_TOO_LARGE, EXCEPTIONS, OUT_OF_MEMORY
 	}
 
+	/*
+	 * Mapper class which extract the HTML content of the social
+	 * sites;linkedin.com, viadeo.com, xing.com from the common-crawl corpus ARC
+	 * files
+	 */
+
 	public static class ProfileExtractionMapper extends
 			Mapper<Text, ArcRecord, Text, Text> {
 
@@ -71,17 +77,23 @@ public class ProfileExtraction extends Configured implements Tool {
 		List<String> profileSites = new ArrayList<String>();
 
 		protected void setup(Context context) throws IOException {
-
+			// get the name of social sites that we pass in job configuration
 			Configuration conf = context.getConfiguration();
 			profileSites = Arrays.asList(conf.get("PROFILE-SITES").split(","));
 
 		};
 
+		/*
+		 * (non-Javadoc)
+		 * 
+		 * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
+		 * org.apache.hadoop.mapreduce.Mapper.Context)
+		 */
+
 		public void map(Text key, ArcRecord value, Context context)
 				throws IOException {
 
 			try {
-
 
 				if (!value.getContentType().contains("html")) {
 					context.getCounter(MAPPERCOUNTER.NOT_RECOGNIZED_AS_HTML)
@@ -95,15 +107,17 @@ public class ProfileExtraction extends Configured implements Tool {
 							.increment(1);
 					return;
 				}
-				//get the url from the map (value:ARC record)
+				// get the url from the map (value:ARC record)
 				url = value.getURL();
 				uri = new URI(url);
 				idn = InternetDomainName.from(uri.getHost());
 				hostDomain = idn.topPrivateDomain().name();
-				/* check if the url host domain is one of the social sites that
-				 we are extracting; linkedin.com, viadeo.com, xing.com*/
-				
-				if (profileSites.contains(hostDomain)) { 
+				/*
+				 * check if the url host domain is one of the social sites that
+				 * we are extracting; linkedin.com, viadeo.com, xing.com
+				 */
+
+				if (profileSites.contains(hostDomain)) {
 					// extract HTML
 					urlHtml = value.getParsedHTML().toString();
 

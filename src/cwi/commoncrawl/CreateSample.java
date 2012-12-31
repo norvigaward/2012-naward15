@@ -5,13 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -21,7 +15,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
@@ -40,7 +33,8 @@ public class CreateSample extends Configured implements Tool {
 	private static final String ARGNAME_NUMREDUCE = "-numreducers";
 
 	/**
-	 * Mapping class that filter textData pages for given domain
+	 * Mapping class that produces a stratified sample from the list of URLs
+	 * that matched the vacancy filter
 	 */
 	public static class CreateSampleMapper extends
 			Mapper<LongWritable, Text, Text, Text> {
@@ -50,21 +44,37 @@ public class CreateSample extends Configured implements Tool {
 		String url;
 		String[] inputLine;
 
-		@SuppressWarnings("unchecked")
+		/*
+		 * (non-Javadoc)
+		 * 
+		 * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
+		 * org.apache.hadoop.mapreduce.Mapper.Context)
+		 */
+
 		@Override
 		public void map(LongWritable key, Text value, Context context)
 				throws IOException, InterruptedException {
+			/*
+			 * input key is a line number input value is real content line
+			 * content, each line contains the domain ID and the URL, they are
+			 * "tab" separated
+			 */
 			inputLine = value.toString().split("\t");
-
+			// set out key to domain id
 			outKey.set(inputLine[0]);
+			// set out value to URL
 			outVal.set(inputLine[1]);
 			context.write(outKey, outVal);
-			// String output = outKey + "\t" + outVal;
-			// LOG.info(output);
 
 		}
 
 	}
+
+	/*
+	 * 
+	 * Reducer class that read the output from the map tasks, produce the list
+	 * of sample URLs
+	 */
 
 	public static class CreateSampleReducer extends
 			Reducer<Text, Text, Text, Text> {
@@ -74,16 +84,28 @@ public class CreateSample extends Configured implements Tool {
 
 		private Path[] statFiles;
 		HashMap<String, Integer> temp = new HashMap<String, Integer>();
-		int totalURLsNum;
+		int totalNumOfURLs;
 		int sample;
-		int domainURLsNum;
+		int domainidUrlsCount;
 
+		/*
+		 * setup will be executed one by the reducer class and make the
+		 * necessary information and files in Distributed cache available for
+		 * all reduce tasks
+		 */
 		protected void setup(Context context) throws IOException {
 
 			BufferedReader br;
 			Configuration conf = context.getConfiguration();
-			totalURLsNum = Integer.parseInt(conf.get("totalURLsNum"));
+			// get the total number of URLs
+			totalNumOfURLs = Integer.parseInt(conf.get("totalURLsNum"));
+			// get the needed sample URLs
 			sample = Integer.parseInt(conf.get("sample"));
+			/*
+			 * read the file which contains the domain ID's and the number of
+			 * URLs for each domain ID from the Distributed cache put the
+			 * content in HashMap<domainID,#of URLs>
+			 */
 			statFiles = DistributedCache.getLocalCacheFiles(conf);
 
 			for (Path statFile : statFiles) {
@@ -114,45 +136,39 @@ public class CreateSample extends Configured implements Tool {
 
 		};
 
+		/*
+		 * (non-Javadoc)
+		 * 
+		 * @see org.apache.hadoop.mapreduce.Reducer#reduce(KEYIN,
+		 * java.lang.Iterable, org.apache.hadoop.mapreduce.Reducer.Context)
+		 * KEYIN is the domain ID, VALUEIN is the set of URLs for the
+		 * corresponding domain ID
+		 */
+
 		public void reduce(Text key, Iterable<Text> values, Context context)
 				throws IOException, InterruptedException {
 
-			// ArrayList<Text> urlsList = new ArrayList<Text>();
-			// ArrayList<Text> sampleList = new ArrayList<Text>();
-			domainURLsNum = temp.get(key.toString());
-			int m = Math.round(((float) sample / (float) totalURLsNum)
-					* (float) domainURLsNum);
+			domainidUrlsCount = temp.get(key.toString());
+			int m = Math.round(((float) sample / (float) totalNumOfURLs)
+					* (float) domainidUrlsCount);
 			int count = 0;
 			int die;
 			outKey.set(key.toString());
 
-		/*	for (Text val : values) {
-				// urlsList.add(val);
-				
-				
-				if (count < m) {
+			// iterate over the domain ID URLs, throw a dice and if the value
+			// equal to "1", output the current URL, until we reach the sample
+			// ratio for the domain ID
+
+			for (Text val : values) {
+				die = (int) (Math.random() * 6 + 1);
+				if (die == 1 && count < m) {
 					outVal.set(val.toString());
 					context.write(outKey, outVal);
-					
-				}
-				count++;
 
-			}*/
-			
-			
-			for(Text val : values){
-				die = (int)(Math.random()*6 + 1);
-		        if (die ==1 && count < m){
-		        	outVal.set(val.toString());
-					context.write(outKey, outVal);
-		       
-		        count++;
-		        }
-				
+					count++;
+				}
+
 			}
-			
-			
-			
 
 		}
 

@@ -1,29 +1,17 @@
 package cwi.commoncrawl;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.filecache.DistributedCache;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.Reducer.Context;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
@@ -34,73 +22,59 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
 import com.google.common.net.InternetDomainName;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import cwi.commoncrawl.CountHostDomainUrls.MAPPERCOUNTER;
+public class CountHostDomainUrls extends Configured implements Tool {
 
-public class ArcLookupIndex extends Configured implements Tool {
-
-	private static final Logger LOG = Logger.getLogger(ArcLookupIndex.class);
-
+	private static final Logger LOG = Logger
+			.getLogger(CountHostDomainUrls.class);
 	private static final String ARGNAME_INPATH = "-in";
 	private static final String ARGNAME_OUTPATH = "-out";
+
 	private static final String ARGNAME_NUMREDUCE = "-numreducers";
 	private static final String FILEFILTER = "metadata-";
 
+	protected static enum MAPPERCOUNTER {
+		INVALID_URIS, INVALID_DOMAIN, MISSING_HTTPCODE, HTTP_SUCCESS, HTTP_FAIL, EXCEPTIONS
+	}
+
 	/**
-	 * Mapping class that extract information from common-crawl metadata files
+	 * Mapping class that produces the host domain and a count of '1' for every
+	 * successfully retrieved URL in the Common Crawl corpus.
 	 */
-	public static class ArcLookupIndexMapper extends
-			Mapper<Text, Text, Text, Text> {
+	public static class PageDomaincountMapper extends
+			Mapper<Text, Text, Text, LongWritable> {
 
 		private final Text outKey = new Text();
-		private final Text outVal = new Text();
+		private static final LongWritable outVal = new LongWritable(1);
 
 		String url;
+		String json;
 		URI uri;
 		String host;
 		InternetDomainName idn;
 		String hostDomain;
-		String fileName;
-		String[] parts;
-		String domainID;
+
 		JsonParser jsonParser = new JsonParser();
 		JsonObject jsonObj;
-		String json;
-		JsonObject arcInfo;
-		String arcSourceSegmentId;
-		String arcFileDate;
-		String arcFilePartition;
-		String arcFileOffset;
 
 		/*
+		 * 
 		 * (non-Javadoc)
 		 * 
 		 * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
 		 * org.apache.hadoop.mapreduce.Mapper.Context)
-		 * KEYIN:URL
-		 * VALUEIN:URL's metadata
 		 */
 
-		@SuppressWarnings("unchecked")
 		@Override
 		public void map(Text key, Text value, Context context)
 				throws IOException {
-			// use the map context configuration to find the name of metadata
-			// file that contains the key/value pairs
-			Configuration conf = context.getConfiguration();
 
-			InputSplit split = context.getInputSplit();
-
-			FileSplit fileSplit = (FileSplit) split;
-			fileName = fileSplit.getPath().getName();
-
-			// map key is a URL, value is a Text json object containing
-			// information about the corresponding URL
+			// key & value are "Text" right now ...
 			url = key.toString();
 			json = value.toString();
+
 			try {
 
 				// Get the base domain name
@@ -108,78 +82,61 @@ public class ArcLookupIndex extends Configured implements Tool {
 
 				host = uri.getHost();
 
-				if (host != null) {
-					idn = InternetDomainName.from(host);
-					hostDomain = idn.topPrivateDomain().name();
-					parts = hostDomain.split("\\.");
-					domainID = parts[parts.length - 1];
-
-					/*
-					 * to locate the ARC file in the common-crawl corpus, we
-					 * need the segment ID which contains the ARC file and the
-					 * file name ARC file name is composed as follow:
-					 * ArchivedDate_partition.arc.gz. we need the offset to
-					 * locate the URL in the ARC file
-					 */
-					jsonObj = jsonParser.parse(json).getAsJsonObject();
-
-					arcInfo = jsonObj.get("archiveInfo").getAsJsonObject();
-
-					arcSourceSegmentId = arcInfo.get("arcSourceSegmentId")
-							.getAsString();
-					arcFileDate = arcInfo.get("arcFileDate").getAsString();
-					arcFilePartition = arcInfo.get("arcFileParition")
-							.getAsString();
-					arcFileOffset = arcInfo.get("arcFileOffset").getAsString();
-					outKey.set(domainID);
-					outVal.set(key.toString() + "\t" + fileName + "\t"
-
-					+ arcSourceSegmentId + "/" + arcFileDate + "_"
-							+ arcFilePartition + ".arc.gz" + "\t"
-							+ arcFileOffset);
-
-					context.write(outKey, outVal);
-
+				if (host == null) {
+					context.getCounter(MAPPERCOUNTER.INVALID_URIS).increment(1);
+					return;
 				}
 
+				idn = InternetDomainName.from(host);
+				hostDomain = idn.topPrivateDomain().name();
+
+				if (hostDomain == null) {
+					context.getCounter(MAPPERCOUNTER.INVALID_DOMAIN).increment(
+							1);
+					return;
+				}
+
+				// See if the page has a successful HTTP code
+				jsonObj = jsonParser.parse(json).getAsJsonObject();
+
+				if (jsonObj.has("http_result") == false) {
+					context.getCounter(MAPPERCOUNTER.MISSING_HTTPCODE)
+							.increment(1);
+					return;
+				}
+
+				if (jsonObj.get("http_result").getAsInt() == 200) {
+					context.getCounter(MAPPERCOUNTER.HTTP_SUCCESS).increment(1);
+					outKey.set(hostDomain);
+					context.write(outKey, outVal);
+				} else {
+					context.getCounter(MAPPERCOUNTER.HTTP_FAIL).increment(1);
+				}
+			} catch (IOException ex) {
+				throw ex;
 			} catch (Exception ex) {
 				LOG.error("Caught Exception", ex);
+				context.getCounter(MAPPERCOUNTER.EXCEPTIONS).increment(1);
 			}
 		}
-	}
-
-	public static class ArcLookupIndexReducer extends
-			Reducer<Text, Text, Text, Text> {
-
-		Text outKey = new Text();
-		Text outVal = new Text();
-
-		public void reduce(Text key, Iterable<Text> values, Context context)
-				throws IOException, InterruptedException {
-
-			for (Text val : values) {
-				outKey.set(key.toString());
-				outVal.set(val.toString());
-				context.write(outKey, outVal);
-
-			}
-
-		}
-
 	}
 
 	public void usage() {
-		System.out.println("\n  cwi.commoncrawl.FilterSitesPerDomain \n"
+		System.out.println("\n  cwi.commoncrawl.PageDomaincount \n"
+				+ "                           " + ARGNAME_INPATH
+				+ " <inputpath>\n" + "                           "
+				+ ARGNAME_OUTPATH + " <outputpath>\n"
 
-		+ ARGNAME_INPATH + " <inputpath>\n" + ARGNAME_OUTPATH
-				+ " <outputpath>\n" + ARGNAME_NUMREDUCE + " <numreduc>\n");
+				+ "                         [ " + ARGNAME_NUMREDUCE
+				+ " <number_of_reducers> ]\n"
+
+		);
 		System.out.println("");
 		GenericOptionsParser.printGenericCommandUsage(System.out);
 	}
 
 	/**
-	 * Implementation of Tool.run() method, which builds and runs the Hadoop
-	 * job.
+	 * Implmentation of Tool.run() method, which builds and runs the Hadoop job.
 	 * 
 	 * @param args
 	 *            command line parameters, less common Hadoop job parameters
@@ -191,10 +148,12 @@ public class ArcLookupIndex extends Configured implements Tool {
 
 		String inputPath = null;
 		String outputPath = null;
+		String configFile = null;
+		boolean overwrite = false;
 		int numReducers = 1;
 
-		// Read the command line arguments.
-
+		// Read the command line arguments. We're not using GenericOptionsParser
+		// to prevent having to include commons.cli as a dependency.
 		for (int i = 0; i < args.length; i++) {
 			try {
 				if (args[i].equals(ARGNAME_INPATH)) {
@@ -203,9 +162,7 @@ public class ArcLookupIndex extends Configured implements Tool {
 					outputPath = args[++i];
 				} else if (args[i].equals(ARGNAME_NUMREDUCE)) {
 					numReducers = Integer.parseInt(args[++i]);
-				}
-
-				else {
+				} else {
 					LOG.warn("Unsupported argument: " + args[i]);
 				}
 			} catch (ArrayIndexOutOfBoundsException e) {
@@ -221,16 +178,25 @@ public class ArcLookupIndex extends Configured implements Tool {
 
 		// Create the Hadoop job.
 		Configuration conf = getConf();
-
 		Job job = new Job(conf);
-		job.setJarByClass(ArcLookupIndex.class);
+		job.setJarByClass(CountHostDomainUrls.class);
 		job.setNumReduceTasks(numReducers);
 
-		// Scan the provided input path
+		// Scan the provided input path for ARC files.
 		LOG.info("setting input path to '" + inputPath + "'");
 		SampleFilter.setFilter(FILEFILTER);
 		FileInputFormat.addInputPath(job, new Path(inputPath));
 		FileInputFormat.setInputPathFilter(job, SampleFilter.class);
+
+		// Delete the output path directory if it already exists and user wants
+		// to overwrite it.
+		if (overwrite) {
+			LOG.info("clearing the output path at '" + outputPath + "'");
+			FileSystem fs = FileSystem.get(new URI(outputPath), conf);
+			if (fs.exists(new Path(outputPath))) {
+				fs.delete(new Path(outputPath), true);
+			}
+		}
 
 		// Set the path where final output 'part' files will be saved.
 		LOG.info("setting output path to '" + outputPath + "'");
@@ -245,11 +211,11 @@ public class ArcLookupIndex extends Configured implements Tool {
 
 		// Set the output data types.
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(LongWritable.class);
 
 		// Set which Mapper and Reducer classes to use.
-		job.setMapperClass(ArcLookupIndex.ArcLookupIndexMapper.class);
-		job.setReducerClass(ArcLookupIndex.ArcLookupIndexReducer.class);
+		job.setMapperClass(CountHostDomainUrls.PageDomaincountMapper.class);
+		job.setReducerClass(LongSumReducer.class);
 
 		if (job.waitForCompletion(true)) {
 			return 0;
@@ -263,8 +229,8 @@ public class ArcLookupIndex extends Configured implements Tool {
 	 * example Hadoop job.
 	 */
 	public static void main(String[] args) throws Exception {
-		int res = ToolRunner.run(new Configuration(), new ArcLookupIndex(),
-				args);
+		int res = ToolRunner.run(new Configuration(),
+				new CountHostDomainUrls(), args);
 		System.exit(res);
 	}
 }

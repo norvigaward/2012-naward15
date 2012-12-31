@@ -48,12 +48,11 @@ public class SearchTextDataPages extends Configured implements Tool {
 	private static final String ARGNAME_OUTPATH = "-out";
 	private static final String ARGNAME_NUMREDUCE = "-numreducers";
 	private static final String FILEFILTER = "textData-";
-	private static final String PATH_PREFIX = "hdfs://p-head03.alley.sara.nl/data/public/common-crawl/award/testset/";
 
 	private static String[] keyWords;
 
 	/**
-	 * Mapping class that filter textData pages for given domain
+	 * Mapping class that find URL that matches the vacancy keywords filter
 	 */
 	public static class SearchTextDataPagesMapper extends
 			Mapper<Text, Text, Text, Text> {
@@ -63,6 +62,7 @@ public class SearchTextDataPages extends Configured implements Tool {
 
 		String url;
 		URI uri;
+		InternetDomainName idn;
 		String host;
 		String hostDomain;
 		String givenDomain;
@@ -72,7 +72,7 @@ public class SearchTextDataPages extends Configured implements Tool {
 		String domainID;
 		int keywordF;
 		String fileName;
-		private Path[] localFiles;
+		private Path[] vacancyFilter;
 		ArrayList<String> temp = new ArrayList<String>();
 		int keyworgTF;
 		HashMap<String, Integer> matchedKeys = new HashMap<String, Integer>();
@@ -81,10 +81,15 @@ public class SearchTextDataPages extends Configured implements Tool {
 		protected void setup(Context context) throws IOException {
 
 			BufferedReader br;
+			/*
+			 * read the file which contains the vacancy keywords from the
+			 * Distributed cache and put the keywords in ArrayList to be
+			 * available for all map tasks
+			 */
 			Configuration conf = context.getConfiguration();
-			localFiles = DistributedCache.getLocalCacheFiles(conf);
+			vacancyFilter = DistributedCache.getLocalCacheFiles(conf);
 
-			for (Path localFile : localFiles) {
+			for (Path localFile : vacancyFilter) {
 				try {
 					// in = fs.open(localFile);
 					br = new BufferedReader(
@@ -112,34 +117,44 @@ public class SearchTextDataPages extends Configured implements Tool {
 
 		};
 
+		/*
+		 * 
+		 * (non-Javadoc)
+		 * 
+		 * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
+		 * org.apache.hadoop.mapreduce.Mapper.Context) KEYIN is the URL from the
+		 * textData file VALUEIN is the real text content of the corresponding
+		 * URL
+		 */
+
 		@SuppressWarnings("unchecked")
 		@Override
 		public void map(Text key, Text value, Context context)
 				throws IOException {
 
-			// givenDomain = conf.get("GIVEN-DOMAIN");
-			InputSplit split = context.getInputSplit();
-
-			FileSplit fileSplit = (FileSplit) split;
-			fileName = fileSplit.getPath().getName();
 			// key is Text
 			url = key.toString();
+			// value is Text content
 			pageText = value.toString().toLowerCase();
 
 			try {
 
 				// Get the base domain name
 				uri = new URI(url);
-				// e.g.,en.cwi.nl
+
 				host = uri.getHost();
 
 				if (host != null) {
-					// e.g.,cwi.nl
-					hostDomain = InternetDomainName.from(host)
-							.topPrivateDomain().name();
+
+					idn = InternetDomainName.from(host);
+					hostDomain = idn.topPrivateDomain().name();
 					parts = hostDomain.split("\\.");
 					domainID = parts[parts.length - 1];
-					// if (domainID.equalsIgnoreCase("nl")) {
+					/*
+					 * for each vacancy keyword, if the keyword exists in the
+					 * text find the frequency of that keyword, put matched
+					 * keywords in HashMap<keyword,frequency>
+					 */
 
 					for (String vacancyKW : keyWords) {
 
@@ -151,7 +166,9 @@ public class SearchTextDataPages extends Configured implements Tool {
 
 					set = matchedKeys.entrySet();
 					Iterator iter = set.iterator();
-
+					// if the textData file has at least matches output matched
+					// keywords and the URL of textData file that contains the
+					// matches
 					if (matchedKeys.size() >= 2) {
 						while (iter.hasNext()) {
 
@@ -169,7 +186,7 @@ public class SearchTextDataPages extends Configured implements Tool {
 
 					}
 
-					// }
+					
 
 				}
 
@@ -180,12 +197,13 @@ public class SearchTextDataPages extends Configured implements Tool {
 
 	}
 
+	
+	
 	public static class SearchTextDataPagesReducer extends
 			Reducer<Text, Text, Text, Text> {
 
 		Text outKey = new Text();
 		Text outVal = new Text();
-		
 
 		public void reduce(Text key, Iterator<Text> values, Context context)
 				throws IOException, InterruptedException {
