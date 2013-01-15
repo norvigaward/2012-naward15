@@ -1,5 +1,5 @@
-Example how to use PigLatin commands in interactive mode to do further work on the ouput from MapReduce job and prepare 
-it to be input for another MapReduce job. 
+Some example which show how we used PigLatin commands in interactive mode to do further work on the ouput from
+MapReduce job and prepare it to be input for another MapReduce job. 
 
 1) One of our MapReduce jobs was to find the candidate vacancy URLs. 
 The output from that job was <(domainid,URL),(matched_key,frequency)>, from these URLs we want to produce a sample list
