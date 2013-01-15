@@ -35,17 +35,20 @@ Main classes:
 	
 	
 1.6 ProfilesExtraction.java
+
 	Extract profiles from pages of social sites, as pre-processing to this step we used the ExtractPagesForGivenHostdomains.java
 	to extract all pages from the social host domains of interest. To restrict profiles to locations of interest we 
 	use class ExtractProfilesForGivenCountries.java
 	
 	
 1.7 ProfilesLocations
+
 	Extract the geolocations information from the extracted profiles in 1.6
 
 Run any of the main classes:
+
 1) Create a jar file which contains the main class, other needed classes and libraries
 2) run the MapReduce job as follow:
-#hadoop jar jar-file [main class name] arguments
-arguments: The usage() method in each class shows the arguments needed for running the corresponding class.
+	#hadoop jar jar-file [main class name] arguments
+	arguments: The usage() method in each class shows the arguments needed for running the corresponding class.
 
