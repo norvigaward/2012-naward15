@@ -48,7 +48,9 @@ Main classes:
 Run any of the main classes:
 
 1) Create a jar file which contains the main class, other needed classes and libraries
+
 2) run the MapReduce job as follow:
+
 	#hadoop jar jar-file [main class name] arguments
 	arguments: The usage() method in each class shows the arguments needed for running the corresponding class.
 
